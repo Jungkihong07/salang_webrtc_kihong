@@ -3,9 +3,9 @@
 ### 🛠️ 주요 사용 기술 및 환경
 
 - **P2P 연결 라이브러리:** **Trystero** (WebRTC 매치메이킹 및 시그널링 추상화)
-- **시그널링/백엔드:** **Supabase** (Docker 기반 자가 호스팅 또는 클라우드, Realtime 기능 활용)
+- **시그널링/백엔드:** **Supabase** (Docker 기반 자가 호스팅, Realtime 기능 활용)
 - **ICE 서버:** **coturn** (Docker 기반으로 구성하여 TURN/STUN 서버 인프라 확보)
-- **매칭 서버/API:** 별도 백엔드(예: Node.js/Python) 직접 구현
+- **프론트엔드:** **React + TypeScript + Vite**
 - **개발 환경:** **Docker** 및 **Docker Compose**를 사용하여 전체 시스템 환경을 통일하여 구축 (개발 및 테스트 환경 간의 일관성 확보)
 
 ---
@@ -38,3 +38,7 @@
 
 1.  사용자 프로필 정보와 결제 정보는 암호화하여 안전하게 관리해야 합니다.
 2.  WebRTC의 기본 암호화(DTLS/SRTP) 외에, Supabase를 통한 데이터 교환 시 **RLS(Row Level Security)**를 적용해야 합니다.
+
+#### 참고 문서
+
+- [프로젝트 구조 설명](PROJECT_STRUCTURE.md)
