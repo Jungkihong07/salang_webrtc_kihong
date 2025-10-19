@@ -83,7 +83,7 @@ function App() {
 
       // 비디오 스트림 공유
       if (localStreamRef.current) {
-        room.addStream(localStreamRef.current, 'video')
+        room.addStream(localStreamRef.current)  // 모든 피어에게 비디오+오디오 전송
       }
 
       // 원격 스트림 수신
@@ -105,10 +105,15 @@ function App() {
         setIsConnected(true)
       })
 
-      // 피어 연결 이벤트
+      // 피어 연결 이벤트 - ⭐ 나중에 참여한 피어에게 스트림 전송!
       room.onPeerJoin((peerId: string) => {
         console.log('피어 참여:', peerId)
         setStatus(`상대방이 참여했습니다: ${peerId}`)
+        
+        // 나중에 참여한 피어에게 내 스트림 전송! (Trystero 공식 패턴)
+        if (localStreamRef.current) {
+          room.addStream(localStreamRef.current, peerId)
+        }
       })
 
       // 피어 떠남 이벤트

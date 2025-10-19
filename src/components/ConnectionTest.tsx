@@ -98,12 +98,23 @@ export default function ConnectionTest() {
   // 오디오 레벨 분석 초기화
   const initAudioAnalysis = (stream: MediaStream, isLocal: boolean) => {
     try {
-      if (!audioContextRef.current) {
+      // AudioContext 상태 체크 및 생성/재개
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new AudioContext()
+        console.log('🎵 새 AudioContext 생성:', audioContextRef.current.state)
+      }
+
+      // AudioContext가 suspended 상태면 resume
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().then(() => {
+          console.log('🎵 AudioContext resumed')
+        })
       }
 
       const analyser = audioContextRef.current.createAnalyser()
       analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.8
+      
       const source = audioContextRef.current.createMediaStreamSource(stream)
       source.connect(analyser)
 
@@ -113,12 +124,21 @@ export default function ConnectionTest() {
         remoteAnalyserRef.current = analyser
       }
 
+      const audioTracks = stream.getAudioTracks()
+      console.log(`🎵 ${isLocal ? '로컬' : '원격'} 오디오 분석기 초기화:`, {
+        context_state: audioContextRef.current.state,
+        has_audio_tracks: audioTracks.length > 0,
+        audio_enabled: audioTracks.length > 0 ? audioTracks[0].enabled : false,
+        track_label: audioTracks.length > 0 ? audioTracks[0].label : 'none'
+      })
+
       addTestResult(
         `${isLocal ? '로컬' : '원격'} 오디오 분석`,
         'success',
-        '오디오 분석기 초기화 완료'
+        `오디오 분석기 초기화 완료 (트랙: ${audioTracks.length}, 상태: ${audioContextRef.current.state})`
       )
     } catch (error) {
+      console.error(`❌ ${isLocal ? '로컬' : '원격'} 오디오 분석 오류:`, error)
       addTestResult(
         `${isLocal ? '로컬' : '원격'} 오디오 분석`,
         'failed',
@@ -238,6 +258,12 @@ export default function ConnectionTest() {
         setIsConnected(true)
         addTestResult('피어 연결', 'success', `피어 연결됨: ${peerId.substr(0, 8)}...`)
         
+        // ⭐ 나중에 참여한 피어에게 스트림 전송! (Trystero 공식 패턴)
+        if (localStreamRef.current) {
+          room.addStream(localStreamRef.current, peerId)
+          addTestResult('스트림 재전송', 'success', `피어 ${peerId.substr(0, 8)}...에게 스트림 전송`)
+        }
+        
         // ICE 연결 상태 모니터링
         monitorIceConnectionState(room)
         
@@ -268,6 +294,16 @@ export default function ConnectionTest() {
 
       // 5. 원격 스트림 수신
       room.onPeerStream((remoteStream: MediaStream, peerId: string) => {
+        console.log('=== 📥 원격 스트림 수신 ===')
+        console.log('Peer ID:', peerId)
+        console.log('Stream:', remoteStream)
+        console.log('Video tracks:', remoteStream.getVideoTracks().map(t => ({
+          id: t.id, label: t.label, enabled: t.enabled, muted: t.muted, readyState: t.readyState
+        })))
+        console.log('Audio tracks:', remoteStream.getAudioTracks().map(t => ({
+          id: t.id, label: t.label, enabled: t.enabled, muted: t.muted, readyState: t.readyState
+        })))
+        
         remoteStreamRef.current = remoteStream
         addTestResult(
           '스트림 수신',
@@ -276,6 +312,7 @@ export default function ConnectionTest() {
         )
 
         // 원격 오디오 분석 초기화
+        console.log('🎵 원격 오디오 분석 초기화 시작...')
         initAudioAnalysis(remoteStream, false)
 
         // 오디오 트랙 확인
@@ -284,7 +321,7 @@ export default function ConnectionTest() {
           addTestResult(
             '오디오 연결',
             'success',
-            `오디오 트랙 활성화: ${audioTracks[0].label}`
+            `오디오 트랙 활성화: ${audioTracks[0].label} (enabled: ${audioTracks[0].enabled})`
           )
         } else {
           addTestResult('오디오 연결', 'failed', '오디오 트랙을 찾을 수 없습니다')
@@ -292,7 +329,21 @@ export default function ConnectionTest() {
       })
 
     } catch (error) {
-      addTestResult('테스트 실패', 'failed', `오류: ${error}`)
+      let errorMessage = '알 수 없는 오류'
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotReadableError') {
+          errorMessage = '⚠️ 마이크/카메라가 다른 앱에서 사용 중입니다. 다른 브라우저나 앱(Zoom, Teams 등)을 종료하고 다시 시도하세요.'
+        } else if (error.name === 'NotAllowedError') {
+          errorMessage = '⚠️ 카메라/마이크 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.'
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = '⚠️ 카메라/마이크를 찾을 수 없습니다. 장치가 연결되어 있는지 확인하세요.'
+        } else {
+          errorMessage = `${error.name}: ${error.message}`
+        }
+      }
+      
+      addTestResult('테스트 실패', 'failed', errorMessage)
       setIsTestRunning(false) // 오류 발생 시 테스트 중지
     }
   }
@@ -500,6 +551,31 @@ export default function ConnectionTest() {
           <li><strong>스트림 수신:</strong> 원격 비디오/오디오 스트림 수신</li>
           <li><strong>오디오 레벨:</strong> 말하면 레벨 미터가 움직이는지 확인</li>
           <li><strong>지연시간:</strong> 100ms 이하면 양호</li>
+        </ul>
+        
+        <h4>⚠️ 테스트 시 주의사항</h4>
+        <ul>
+          <li><strong>로컬 테스트 (같은 PC):</strong> 
+            <ul>
+              <li>첫 번째 브라우저만 마이크 사용 가능</li>
+              <li>두 번째 브라우저는 "Device in use" 오류 발생 (정상 동작)</li>
+              <li>해결: 다른 기기 사용 권장</li>
+            </ul>
+          </li>
+          <li><strong>권장 테스트 환경:</strong>
+            <ul>
+              <li>PC + 스마트폰 (가장 이상적)</li>
+              <li>PC + 노트북</li>
+              <li>다른 네트워크 환경 (실제 환경 테스트)</li>
+            </ul>
+          </li>
+          <li><strong>오디오 레벨 확인:</strong>
+            <ul>
+              <li>로컬: 말하면 즉시 레벨 미터 움직임</li>
+              <li>원격: 상대방이 말할 때 레벨 미터 움직임</li>
+              <li>둘 다 0%면 Console 로그 (F12) 확인</li>
+            </ul>
+          </li>
         </ul>
       </div>
     </div>

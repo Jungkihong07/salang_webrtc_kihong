@@ -1,3 +1,6 @@
+# etc
+ngrok_authtoken.txt
+
 # Dependencies
 node_modules/
 npm-debug.log*
