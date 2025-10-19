@@ -138,18 +138,21 @@ cp .env.example .env
 # 의존성 설치
 npm install
 
-# Docker coturn 서버 시작
-docker-compose up -d
+# (선택사항) 로컬 coturn 서버 시작 - 현재는 Google STUN 사용 중
+# docker-compose up -d
 
 # 개발 서버 시작
 npm run dev
 ```
 
+**참고:** 현재는 Google의 무료 STUN 서버를 사용하므로 Docker coturn 없이도 외부 사용자와 연결됩니다!
+
 ### 접근 가능한 서비스
 
 - **프론트엔드**: http://localhost:3000
-- **coturn TURN/STUN**: localhost:3478
 - **Supabase**: Supabase SaaS (클라우드)
+- **STUN 서버**: Google 공개 STUN (stun.l.google.com:19302)
+- **(선택사항) coturn**: localhost:3478 (로컬 테스트용, 현재 미사용)
 
 ## 📝 개발 가이드
 
@@ -164,10 +167,18 @@ npm run dev
 1. `.env` 파일에서 필요한 값 수정
 2. 개발 서버 재시작 (`npm run dev`)
 
-### TURN 서버 설정 변경
+### ICE 서버 설정 변경
+
+**현재 사용 중: Google STUN 서버**
+
+- `src/App.tsx`와 `src/components/ConnectionTest.tsx`의 `TURN_CONFIG` 수정
+- 무료, 외부 사용자와 약 80% 연결 성공률
+
+**로컬 coturn 사용 (선택사항):**
 
 1. `coturn.conf` 파일 수정
-2. `docker-compose restart coturn`으로 coturn 컨테이너 재시작
+2. `docker-compose up -d`로 coturn 시작
+3. 코드에서 `localhost:3478`로 변경
 
 ## 🔍 문제 해결
 

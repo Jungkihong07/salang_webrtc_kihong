@@ -13,8 +13,15 @@
 이 프로젝트는 다음과 같은 구조로 동작합니다:
 
 1. **시그널링**: Supabase SaaS의 Realtime 기능을 통해 피어 간 연결 협상
-2. **ICE 서버**: 로컬 Docker coturn 서버로 NAT 통과 및 릴레이 제공
+2. **ICE 서버**: Google 공개 STUN 서버로 NAT 통과 (약 80% 연결 성공률)
 3. **P2P 연결**: Trystero가 WebRTC를 추상화하여 간편한 P2P 통신 구현
+
+**ICE 서버 전략:**
+
+- 현재: Google STUN 서버 사용 (무료, 외부 사용자와 즉시 연결 가능)
+- 향후: 필요시 TURN 서버 추가로 99%+ 연결 성공률 달성 가능
+  - 옵션 1: Metered.ca 무료 TURN (50GB/월)
+  - 옵션 2: AWS/GCP에 자체 coturn 서버 구축
 
 ---
 
@@ -81,12 +88,14 @@ cp .env.example .env
 # 의존성 설치
 npm install
 
-# coturn 서버 시작
-docker-compose up -d
+# (선택사항) 로컬 coturn 서버 시작 - 현재는 Google STUN 사용 중
+# docker-compose up -d
 
 # 개발 서버 시작
 npm run dev
 ```
+
+**참고:** 현재는 Google의 무료 STUN 서버를 사용하므로 Docker coturn 서버 없이도 외부 사용자와 연결됩니다!
 
 ### 4. 테스트
 
@@ -104,12 +113,14 @@ npm run dev
 
 - ✅ 미디어 스트림 획득 (카메라/마이크)
 - ✅ Supabase 시그널링 연결
-- ✅ Peer 간 P2P 연결
+- ✅ Peer 간 P2P 연결 (Google STUN을 통한 NAT 통과)
 - ✅ ICE 연결 상태 (connected/completed)
 - ✅ 오디오/비디오 스트림 송수신
 - ✅ 실시간 오디오 레벨 미터
 - ✅ 네트워크 지연시간 (latency)
 - ✅ 연결 품질 평가
+
+**참고:** Google STUN 서버를 사용하므로 다른 네트워크의 사용자와도 약 80% 확률로 연결됩니다!
 
 #### 💬 일반 앱 테스트
 
@@ -160,8 +171,8 @@ npm run dev
 
 - ❌ **미디어 스트림 실패**: 카메라/마이크 권한 확인
 - ❌ **Trystero 연결 실패**: Supabase URL/Key 확인
-- ❌ **Peer 연결 실패**: coturn 서버 상태 확인 (`docker ps`)
-- ❌ **ICE 연결 실패**: 방화벽 또는 NAT 설정 확인
+- ❌ **Peer 연결 실패**: 네트워크 방화벽 확인 (Google STUN 접근 가능한지)
+- ❌ **ICE 연결 실패**: Symmetric NAT 환경일 수 있음 (TURN 서버 필요)
 - ❌ **오디오 레벨 0**: 마이크 음소거 해제 확인
 
 ---

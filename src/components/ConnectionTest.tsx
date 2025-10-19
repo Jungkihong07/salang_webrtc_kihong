@@ -7,17 +7,14 @@ import './ConnectionTest.css'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// coturn 설정
+// ICE 서버 설정 (Google 공개 STUN 서버)
 const TURN_CONFIG = {
   iceServers: [
-    {
-      urls: 'stun:localhost:3478'
-    },
-    {
-      urls: 'turn:localhost:3478',
-      username: 'salang',
-      credential: 'salang123'
-    }
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
   ]
 }
 
