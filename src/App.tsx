@@ -1,36 +1,41 @@
-import React, { useState, useEffect } from 'react'
-import { joinRoom } from 'trystero'
+import { useState, useEffect, useRef } from 'react'
+import { joinRoom } from 'trystero/supabase'
+import type { Room } from 'trystero'
+import ConnectionTest from './components/ConnectionTest'
 import './App.css'
 
-// Supabase 설정
-const SUPABASE_URL = 'http://127.0.0.1:54321'
-const SUPABASE_ANON_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
+// Supabase 설정 (환경 변수에서 가져오기)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// coturn 설정
+// ICE 서버 설정 (Google 공개 STUN 서버)
 const TURN_CONFIG = {
   iceServers: [
-    {
-      urls: 'stun:localhost:3478'
-    },
-    {
-      urls: 'turn:localhost:3478',
-      username: 'salang',
-      credential: 'salang123'
-    }
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
   ]
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'app' | 'test'>('app')
   const [isConnected, setIsConnected] = useState(false)
   const [roomId, setRoomId] = useState('')
   const [status, setStatus] = useState('연결 대기 중...')
   const [localVideo, setLocalVideo] = useState<HTMLVideoElement | null>(null)
   const [remoteVideo, setRemoteVideo] = useState<HTMLVideoElement | null>(null)
+  
+  // Room과 스트림 참조 저장
+  const roomRef = useRef<Room | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
     // 로컬 비디오 스트림 초기화
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then(stream => {
+        localStreamRef.current = stream // MediaStream 저장
         const video = document.createElement('video')
         video.srcObject = stream
         video.autoplay = true
@@ -41,6 +46,16 @@ function App() {
         console.error('비디오 스트림 가져오기 실패:', err)
         setStatus('비디오 스트림을 가져올 수 없습니다.')
       })
+
+    // Cleanup: 컴포넌트 언마운트 시 스트림 정리
+    return () => {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop())
+      }
+      if (roomRef.current) {
+        roomRef.current.leave()
+      }
+    }
   }, [])
 
   const connectToRoom = async () => {
@@ -52,29 +67,27 @@ function App() {
     try {
       setStatus('방에 연결 중...')
       
-      // Trystero를 사용하여 방에 참여
+      // Trystero Supabase 전략을 사용하여 방에 참여
+      // appId는 Supabase URL로 사용됨 (내부적으로 createClient 호출 시)
       const room = joinRoom(
-        { appId: 'salang-webrtc' },
-        roomId,
         {
-          provider: 'supabase',
-          config: {
-            url: SUPABASE_URL,
-            anonKey: SUPABASE_ANON_KEY
-          }
-        }
+          appId: SUPABASE_URL,
+          supabaseKey: SUPABASE_ANON_KEY,
+          rtcConfig: TURN_CONFIG
+        },
+        roomId
       )
-
-      // ICE 서버 설정
-      room.setIceServers(TURN_CONFIG.iceServers)
+      
+      // Room 객체 저장
+      roomRef.current = room
 
       // 비디오 스트림 공유
-      if (localVideo && localVideo.srcObject) {
-        room.addStream(localVideo.srcObject as MediaStream, 'video')
+      if (localStreamRef.current) {
+        room.addStream(localStreamRef.current, 'video')
       }
 
       // 원격 스트림 수신
-      room.onPeerStream((stream, peerId) => {
+      room.onPeerStream((stream: MediaStream, peerId: string) => {
         console.log('원격 스트림 수신:', peerId)
         const video = document.createElement('video')
         video.srcObject = stream
@@ -85,13 +98,13 @@ function App() {
       })
 
       // 피어 연결 이벤트
-      room.onPeerJoin((peerId) => {
+      room.onPeerJoin((peerId: string) => {
         console.log('피어 참여:', peerId)
         setStatus(`상대방이 참여했습니다: ${peerId}`)
       })
 
       // 피어 떠남 이벤트
-      room.onPeerLeave((peerId) => {
+      room.onPeerLeave((peerId: string) => {
         console.log('피어 떠남:', peerId)
         setStatus('상대방이 떠났습니다.')
         setIsConnected(false)
@@ -106,19 +119,58 @@ function App() {
     }
   }
 
-  const disconnect = () => {
-    setIsConnected(false)
-    setRemoteVideo(null)
-    setStatus('연결이 해제되었습니다.')
+  const disconnect = async () => {
+    try {
+      // Room에서 나가기
+      if (roomRef.current) {
+        await roomRef.current.leave()
+        roomRef.current = null
+      }
+
+      // 원격 비디오 정리
+      if (remoteVideo && remoteVideo.srcObject) {
+        const stream = remoteVideo.srcObject as MediaStream
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      // 상태 업데이트
+      setIsConnected(false)
+      setRemoteVideo(null)
+      setStatus('연결이 해제되었습니다.')
+      
+      console.log('연결 해제 완료')
+    } catch (error) {
+      console.error('연결 해제 실패:', error)
+      setStatus(`연결 해제 실패: ${error}`)
+    }
   }
 
   return (
     <div className="App">
       <header className="App-header">
         <h1>Salang - 화상 통화 매칭</h1>
-        <p>WebRTC + Trystero + Supabase + coturn 테스트</p>
+        <p>WebRTC + Trystero + Supabase + coturn</p>
+        
+        <div className="tab-navigation">
+          <button 
+            className={`tab-button ${activeTab === 'app' ? 'active' : ''}`}
+            onClick={() => setActiveTab('app')}
+          >
+            💬 일반 앱
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'test' ? 'active' : ''}`}
+            onClick={() => setActiveTab('test')}
+          >
+            🧪 연결 테스트
+          </button>
+        </div>
       </header>
 
+      {activeTab === 'test' ? (
+        <ConnectionTest />
+      ) : (
+      <>
       <main className="App-main">
         <div className="connection-panel">
           <h2>연결 설정</h2>
@@ -190,12 +242,13 @@ function App() {
           <h3>설정 정보</h3>
           <ul>
             <li><strong>Supabase URL:</strong> {SUPABASE_URL}</li>
-            <li><strong>Supabase Key:</strong> {SUPABASE_ANON_KEY}</li>
             <li><strong>TURN Server:</strong> localhost:3478</li>
-            <li><strong>Realtime Port:</strong> 4000</li>
+            <li><strong>전략:</strong> Trystero + Supabase SaaS + coturn</li>
           </ul>
         </div>
       </footer>
+      </>
+      )}
     </div>
   )
 }
