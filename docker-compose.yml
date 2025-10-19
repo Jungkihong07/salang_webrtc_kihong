@@ -1,92 +1,16 @@
-
 services:
-  # Supabase 로컬 스택
-  supabase:
-    image: supabase/postgres:15.1.0.147
-    container_name: salang-supabase
-    environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    ports:
-      - "54322:5432"  # PostgreSQL 포트
-    volumes:
-      - supabase_db_data:/var/lib/postgresql/data
-    networks:
-      - salang-network
-
-  # Supabase API Gateway
-  supabase-api:
-    image: supabase/gotrue:v2.143.0
-    container_name: salang-supabase-api
-    environment:
-      GOTRUE_API_HOST: 0.0.0.0
-      GOTRUE_API_PORT: 9999
-      API_EXTERNAL_URL: http://localhost:54321
-      GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://postgres:postgres@supabase:5432/postgres
-      GOTRUE_SITE_URL: http://localhost:3000
-      GOTRUE_URI_ALLOW_LIST: http://localhost:3000
-      GOTRUE_DISABLE_SIGNUP: false
-      GOTRUE_JWT_SECRET: your-super-secret-jwt-token-with-at-least-32-characters-long
-      GOTRUE_JWT_EXP: 3600
-      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
-      GOTRUE_MAILER_AUTOCONFIRM: true
-    ports:
-      - "54321:9999"  # Supabase API 포트
-    depends_on:
-      - supabase
-    networks:
-      - salang-network
-
-  # Supabase Realtime (Trystero 시그널링용)
-  supabase-realtime:
-    image: supabase/realtime:v2.25.35
-    container_name: salang-supabase-realtime
-    environment:
-      PORT: 4000
-      DB_HOST: supabase
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: postgres
-      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
-      DB_ENC_KEY: supabaserealtime
-      API_JWT_SECRET: your-super-secret-jwt-token-with-at-least-32-characters-long
-      FLY_ALLOC_ID: fly123
-      FLY_APP_NAME: realtime
-      SECRET_KEY_BASE: UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq
-      ERL_AFLAGS: -proto_dist inet_tcp
-      ENABLE_TAILSCALE: false
-      DNS_NODES: "''"
-    ports:
-      - "4000:4000"  # Realtime 포트
-    depends_on:
-      - supabase
-    networks:
-      - salang-network
-
   # coturn TURN/STUN 서버
   coturn:
     image: coturn/coturn:latest
     container_name: salang-coturn
     environment:
-      TURN_USERNAME: salang
-      TURN_PASSWORD: salang123
-      TURN_REALM: salang.local
+      TURN_USERNAME: ${TURN_USERNAME:-salang}
+      TURN_PASSWORD: ${TURN_PASSWORD:-salang123}
+      TURN_REALM: ${TURN_REALM:-salang.local}
     ports:
       - "3478:3478"    # TURN/STUN 포트 (TCP)
       - "3478:3478/udp" # TURN/STUN 포트 (UDP)
-      - "49152-49200:49152-49200/udp" # TURN 릴레이 포트 범위 (제한)
+      - "49152-49200:49152-49200/udp" # TURN 릴레이 포트 범위
     volumes:
       - ./coturn.conf:/etc/coturn/turnserver.conf:ro
-    networks:
-      - salang-network
     restart: unless-stopped
-
-volumes:
-  supabase_db_data:
-
-networks:
-  salang-network:
-    driver: bridge

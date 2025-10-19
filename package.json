@@ -7,21 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.75.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "trystero": "^0.9.0"
+    "trystero": "^0.22.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "supabase": "^2.45.5",
     "typescript": "^5.0.0",
     "vite": "^4.4.0"
   }

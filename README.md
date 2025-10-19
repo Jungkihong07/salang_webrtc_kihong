@@ -1,12 +1,20 @@
-## 화상 통화 매칭 애플리케이션 요구 사항 및 기술 스택
+## 화상 통화 매칭 애플리케이션
 
 ### 🛠️ 주요 사용 기술 및 환경
 
 - **P2P 연결 라이브러리:** **Trystero** (WebRTC 매치메이킹 및 시그널링 추상화)
-- **시그널링/백엔드:** **Supabase** (Docker 기반 자가 호스팅, Realtime 기능 활용)
-- **ICE 서버:** **coturn** (Docker 기반으로 구성하여 TURN/STUN 서버 인프라 확보)
+- **시그널링/백엔드:** **Supabase SaaS** (클라우드 기반 Realtime 시그널링)
+- **ICE 서버:** **coturn** (Docker 기반 로컬 TURN/STUN 서버)
 - **프론트엔드:** **React + TypeScript + Vite**
-- **개발 환경:** **Docker** 및 **Docker Compose**를 사용하여 전체 시스템 환경을 통일하여 구축 (개발 및 테스트 환경 간의 일관성 확보)
+- **개발 환경:** **Docker Compose**로 coturn 서버 관리
+
+### 🏗️ 아키텍처
+
+이 프로젝트는 다음과 같은 구조로 동작합니다:
+
+1. **시그널링**: Supabase SaaS의 Realtime 기능을 통해 피어 간 연결 협상
+2. **ICE 서버**: 로컬 Docker coturn 서버로 NAT 통과 및 릴레이 제공
+3. **P2P 연결**: Trystero가 WebRTC를 추상화하여 간편한 P2P 통신 구현
 
 ---
 
@@ -39,6 +47,128 @@
 1.  사용자 프로필 정보와 결제 정보는 암호화하여 안전하게 관리해야 합니다.
 2.  WebRTC의 기본 암호화(DTLS/SRTP) 외에, Supabase를 통한 데이터 교환 시 **RLS(Row Level Security)**를 적용해야 합니다.
 
-#### 참고 문서
+---
+
+## 🚀 빠른 시작
+
+### 1. 사전 요구사항
+
+- Node.js 18 이상
+- Docker Desktop
+- Supabase 계정 (https://supabase.com - 무료)
+
+### 2. Supabase 프로젝트 설정
+
+1. [Supabase 대시보드](https://supabase.com/dashboard)에서 새 프로젝트 생성
+2. **Settings** > **API**로 이동
+3. 다음 정보를 복사:
+   - **Project URL** (예: `https://xxxxx.supabase.co`)
+   - **anon public** key
+
+### 3. 프로젝트 설정
+
+```bash
+# 저장소 클론 (또는 다운로드)
+cd salang_webrtc_kihong
+
+# 환경 변수 파일 생성
+cp .env.example .env
+
+# .env 파일을 열어 Supabase 정보 입력
+# VITE_SUPABASE_URL=your-project-url
+# VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# 의존성 설치
+npm install
+
+# coturn 서버 시작
+docker-compose up -d
+
+# 개발 서버 시작
+npm run dev
+```
+
+### 4. 테스트
+
+#### 🧪 자동화된 연결 테스트 (권장)
+
+1. 브라우저에서 http://localhost:3000 열기
+2. 상단의 **"🧪 연결 테스트"** 탭 클릭
+3. "테스트 시작" 버튼 클릭
+4. 방 ID를 복사
+5. **다른 브라우저 또는 시크릿 창**에서 같은 URL 열기
+6. "🧪 연결 테스트" 탭으로 이동
+7. 복사한 방 ID를 입력하고 "테스트 시작" 클릭
+
+**테스트 페이지에서 확인할 수 있는 항목:**
+
+- ✅ 미디어 스트림 획득 (카메라/마이크)
+- ✅ Supabase 시그널링 연결
+- ✅ Peer 간 P2P 연결
+- ✅ ICE 연결 상태 (connected/completed)
+- ✅ 오디오/비디오 스트림 송수신
+- ✅ 실시간 오디오 레벨 미터
+- ✅ 네트워크 지연시간 (latency)
+- ✅ 연결 품질 평가
+
+#### 💬 일반 앱 테스트
+
+1. 브라우저에서 http://localhost:3000 열기
+2. 상단의 **"💬 일반 앱"** 탭 선택 (기본값)
+3. 방 ID 입력 (예: `test-room-1`)
+4. "방에 참여" 클릭
+5. **다른 브라우저 또는 시크릿 창**에서 같은 URL 열기
+6. 같은 방 ID 입력하여 참여
+7. 두 브라우저 간 P2P 화상 통화 연결 확인
+
+---
+
+## 🧪 테스트 기능
+
+이 프로젝트는 WebRTC 연결을 체계적으로 테스트할 수 있는 전용 테스트 페이지를 제공합니다.
+
+### 테스트 항목
+
+1. **연결 상태 모니터링**
+
+   - 실시간 ICE 연결 상태 확인
+   - Peer 연결 수 표시
+   - 연결/해제 이벤트 로깅
+
+2. **오디오 레벨 측정**
+
+   - 로컬 마이크 입력 레벨 시각화
+   - 원격 오디오 수신 레벨 시각화
+   - 실시간 오디오 분석 (Web Audio API 사용)
+
+3. **네트워크 품질**
+
+   - 지연시간(latency) 측정 (ms 단위)
+   - 연결 품질 평가 (양호/보통/느림)
+   - 3초마다 자동 측정
+
+4. **자동 테스트 시나리오**
+   - 미디어 스트림 획득 검증
+   - Supabase 시그널링 연결 검증
+   - Peer 연결 수립 검증
+   - 스트림 송수신 검증
+   - 각 단계별 성공/실패 로깅
+
+### 문제 해결
+
+테스트 페이지의 결과를 통해 다음 문제를 진단할 수 있습니다:
+
+- ❌ **미디어 스트림 실패**: 카메라/마이크 권한 확인
+- ❌ **Trystero 연결 실패**: Supabase URL/Key 확인
+- ❌ **Peer 연결 실패**: coturn 서버 상태 확인 (`docker ps`)
+- ❌ **ICE 연결 실패**: 방화벽 또는 NAT 설정 확인
+- ❌ **오디오 레벨 0**: 마이크 음소거 해제 확인
+
+---
+
+## 📖 참고 문서
 
 - [프로젝트 구조 설명](PROJECT_STRUCTURE.md)
+- [Trystero 공식 문서](https://github.com/dmotz/trystero)
+- [Supabase 공식 문서](https://supabase.com/docs)
+- [WebRTC MDN 문서](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
