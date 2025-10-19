@@ -92,6 +92,14 @@ function App() {
         const video = document.createElement('video')
         video.srcObject = stream
         video.autoplay = true
+        video.muted = false  // 원격은 음소거 해제! (중요)
+        video.playsInline = true  // 모바일 대응
+        
+        // 명시적으로 재생 시작
+        video.play().catch(err => {
+          console.error('원격 비디오 재생 실패:', err)
+        })
+        
         setRemoteVideo(video)
         setStatus(`연결됨 - 상대방: ${peerId}`)
         setIsConnected(true)
@@ -212,7 +220,15 @@ function App() {
             <div className="video-wrapper">
               {localVideo && (
                 <video
-                  ref={(el) => el && el.appendChild(localVideo)}
+                  ref={(el) => {
+                    if (el && localVideo.srcObject) {
+                      el.srcObject = localVideo.srcObject
+                      el.autoplay = true
+                      el.muted = true  // 로컬은 음소거 (에코 방지)
+                      el.playsInline = true  // 모바일 대응
+                      el.play().catch(e => console.log('로컬 비디오 재생 실패:', e))
+                    }
+                  }}
                   style={{ width: '100%', height: 'auto' }}
                 />
               )}
@@ -224,7 +240,15 @@ function App() {
             <div className="video-wrapper">
               {remoteVideo ? (
                 <video
-                  ref={(el) => el && el.appendChild(remoteVideo)}
+                  ref={(el) => {
+                    if (el && remoteVideo.srcObject) {
+                      el.srcObject = remoteVideo.srcObject
+                      el.autoplay = true
+                      el.muted = false  // 원격은 음소거 해제!
+                      el.playsInline = true  // 모바일 대응
+                      el.play().catch(e => console.log('원격 비디오 재생 실패:', e))
+                    }
+                  }}
                   style={{ width: '100%', height: 'auto' }}
                 />
               ) : (
